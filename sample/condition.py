@@ -421,7 +421,6 @@ def cond_fn_key_location(
         # print("grad_norm", grad.norm())
         return grad * classifiler_scale  # * (1000. - t) / 100.0
 
-
 class CondKeyLocations:
     def __init__(self,
                  target=None,
@@ -648,6 +647,7 @@ class CondKeyLocationsLoss:
             else:   
                 raise NotImplementedError()
             
+            #NOTE: This is for collision avoidance
             # assert len(self.obs_list) == 0, "not implemented"
             loss_colli = 0.0
             for ((c_x, c_z), rad) in self.obs_list:

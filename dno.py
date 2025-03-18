@@ -64,7 +64,7 @@ class DNO:
         self.start_z = start_z.detach()
         self.conf = conf
 
-        self.current_z = self.start_z.clone().requires_grad_(True)
+        self.current_z = self.start_z.clone().requires_grad_(True)  # (B, 263, 1, 120)
         # excluding the first dimension (batch size)
         self.dims = list(range(1, len(self.start_z.shape)))
 

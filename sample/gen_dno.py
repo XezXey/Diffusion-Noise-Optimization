@@ -18,6 +18,7 @@ from dno import DNO, DNOOptions
 from model.cfg_sampler import ClassifierFreeSampleModel
 from sample import dno_helper
 from sample.condition import CondKeyLocationsLoss
+from sample.reprojection_condition import CondReporjectionLoss
 from utils import dist_util
 from utils.fixseed import fixseed
 from utils.model_util import (create_gaussian_diffusion,
@@ -164,7 +165,8 @@ def main(num_trials=3):
     for rep_i in range(args.num_repetitions):
         assert args.num_repetitions == 1, "Not implemented"
         if args.load_from == '':
-            # Run normal text-to-motion generation to get the starting motion
+            #NOTE: Run normal text-to-motion generation to get the starting motion
+            print(f"[#] Running text-to-motion generation to get the starting motion w/ prompt: \"{args.text_prompt}\"")
             sample = dno_helper.run_text_to_motion(
                 args, diffusion, model, model_kwargs, data, n_frames
             )  # [1, 263, 1, 120]
@@ -335,11 +337,13 @@ def main(num_trials=3):
         diffusion = create_gaussian_diffusion(args, f"ddim{num_ode_steps}")
 
         if START_FROM_NOISE:
+            print("[#] Start from noise: ")
             torch.manual_seed(0)
             # use the batch size that comes from main()
             gen_shape = [num_trials, model.njoints, model.nfeats, n_frames]
             cur_xt = torch.randn(gen_shape).to(model_device)
         else:
+            print("[#] Start from inverted noise")
             cur_xt = inv_noise.detach().clone()
             cur_xt = cur_xt.repeat(num_trials, 1, 1, 1)
 
