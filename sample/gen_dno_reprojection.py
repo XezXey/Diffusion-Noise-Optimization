@@ -17,7 +17,7 @@ from diffusion.gaussian_diffusion import GaussianDiffusion
 from dno import DNO, DNOOptions
 from model.cfg_sampler import ClassifierFreeSampleModel
 from sample import dno_helper
-from sample.reprojection_condition import CondReporjectionLoss
+from sample.reprojection_condition import CondReprojectionLoss
 from utils import dist_util
 from utils.fixseed import fixseed
 from utils.model_util import (create_gaussian_diffusion,
@@ -348,7 +348,10 @@ def main(num_trials=3):
 
         cur_xt = cur_xt.detach().requires_grad_()
 
-        loss_fn = CondReporjectionLoss(
+        #TODO: Complete the loss function
+        # 1. Class argument: target_joints_2d, target_mask, ...
+        # 2. Create and Initialize the camera parameters as the learnable parameters in addition to the self.current_z (https://vscode.dev/github/XezXey/Diffusion-Noise-Optimization/blob/main/dno.py#L71)
+        loss_fn = CondReprojectionLoss(
             target=target,
             target_mask=target_mask,
             transform=data.dataset.t2m_dataset.transform_th,

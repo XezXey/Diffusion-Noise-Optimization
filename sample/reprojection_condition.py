@@ -6,7 +6,7 @@ import os
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 
-class CondReporjectionLoss:
+class CondReprojectionLoss:
     def __init__(self,
                  target=None,
                  target_joints_2d=None,
@@ -141,6 +141,8 @@ def reprojection_loss(x_in_joints, target_joints_2d, cam_dict):
         cam_dict: Camera parameters (camera_R, camera_t, camera_center, focal_length)
         
     """
+    #TODO: Recheck all shapes and dimensions 
+    # 1. Need to flatten the B and T dimensions for reprojection then reshape back
     camera_T = cam_dict['camera_T'] # BS x 3 x T  # 3D-Translation of T frames
     camera_R = cam_dict['camera_R'] # BS x 6 x T  # 6D-Rotation of T frames 
     camera_R = rotation_6d_to_matrix(camera_R.permute(0, 2, 1))
