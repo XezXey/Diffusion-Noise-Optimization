@@ -14,7 +14,7 @@ from data_loaders.get_data import DatasetConfig, get_dataset_loader
 from data_loaders.humanml.utils.plot_script import plot_3d_motion
 from data_loaders.tensors import collate
 from diffusion.gaussian_diffusion import GaussianDiffusion
-from dno import DNO, DNOOptions
+from dno_reprojection import DNOReprojection, DNOOptions
 from model.cfg_sampler import ClassifierFreeSampleModel
 from sample import dno_helper
 from sample.reprojection_condition import CondReprojectionLoss
@@ -29,7 +29,7 @@ from utils.parser_util import generate_args
 
 def main(num_trials=3):
     num_ode_steps = 10
-    OPTIMIZATION_STEP = 800
+    OPTIMIZATION_STEP = 10000
     #############################################
     ### Gradient Checkpointing
     # More DDIM steps will require more memory for full chain backprop.
@@ -38,9 +38,9 @@ def main(num_trials=3):
     #############################################
     ### Task selection ###
     task = ""
-    task = "trajectory_editing"
+    # task = "trajectory_editing"
     # task = "pose_editing"
-    # task = "dense_optimization"
+    task = "dense_optimization"
     # task = "motion_projection"
     # task = "motion_blending"
     # task = "motion_inbetweening"
@@ -64,7 +64,7 @@ def main(num_trials=3):
     n_frames = min(args.max_frames, int(args.motion_length * fps))
     motion_length_cut = 6.0
     gen_frames = int(motion_length_cut * fps)
-    assert gen_frames <= n_frames, "gen_frames must be less than n_frames"
+    assert gen_frames <= n_frames, f"gen_frames={gen_frames} must be less than n_frames={n_frames}"
     args.gen_frames = gen_frames
     print("n_frames", n_frames)
     is_using_data = False
@@ -351,8 +351,10 @@ def main(num_trials=3):
         #TODO: Complete the loss function
         # 1. Class argument: target_joints_2d, target_mask, ...
         # 2. Create and Initialize the camera parameters as the learnable parameters in addition to the self.current_z (https://vscode.dev/github/XezXey/Diffusion-Noise-Optimization/blob/main/dno.py#L71)
+        #DONE:
         loss_fn = CondReprojectionLoss(
             target=target,
+            target_joints_2d=None,
             target_mask=target_mask,
             transform=data.dataset.t2m_dataset.transform_th,
             inv_transform=data.dataset.t2m_dataset.inv_transform_th,
@@ -361,7 +363,7 @@ def main(num_trials=3):
             use_rand_projection=False,
             obs_list=obs_list,
         )
-        criterion = lambda x: loss_fn(x, **model_kwargs)
+        criterion = lambda x, z: loss_fn(x, z, **model_kwargs)
 
         def solver(z):
             return ddim_loop_with_gradient(
@@ -375,8 +377,8 @@ def main(num_trials=3):
             )
 
         ######## Main optimization loop #######
-        noise_opt = DNO(
-            model=solver, criterion=criterion, start_z=cur_xt, conf=noise_opt_conf
+        noise_opt = DNOReprojection(
+            model=solver, criterion=criterion, start_z=cur_xt, conf=noise_opt_conf,
         )
         #######################################
         out = noise_opt()
@@ -438,6 +440,9 @@ def main(num_trials=3):
 
         torch.save(out["z"], os.path.join(out_path, "optimized_z.pt"))
         torch.save(out["x"], os.path.join(out_path, "optimized_x.pt"))
+        
+        # Save camera parameters
+        torch.save(noise_opt.cam_dict, os.path.join(out_path, "cam_dict.pt"))
 
         ###################
         num_dump_step = 1
