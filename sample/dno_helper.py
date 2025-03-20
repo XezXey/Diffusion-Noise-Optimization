@@ -34,6 +34,8 @@ def prepare_task(task_info, args):
         return task_motion_inbetweening(task_info, args, target, target_mask)
     elif taskname == "happy_holidays":
         raise NotImplementedError
+    elif taskname == "pose_editing_reprojection":
+        return task_pose_editing_reprojection(task_info, args, target, target_mask)
     else:
         raise ValueError(f"Unknown task name: {taskname}")
  
@@ -102,9 +104,38 @@ def task_pose_editing(task_info, args, target, target_mask):
     target_edit_list = [
         # (joint_index, keyframe, edit_dim, target(x, y, z))
         # (21, 90, [1], [1.0]), # Right hand at frame 90th, edit height to 1.0
-        (15, 90, [1], [0.6]), # Head at frame 90th, edit height to 1.0
+        (15, 90, [1], [0.6]), # Head at frame 90th, edit height to 1.0 => #NOTE: Should be 0.6
 
     ]
+    kframes = []
+    obs_list = []
+    for (joint_index, keyframe, edit_dim, target_loc) in target_edit_list:
+        target[0, keyframe, joint_index, edit_dim] = torch.tensor(
+            target_loc, 
+            dtype=torch.float32, device=target.device
+        )
+        target_mask[0, keyframe, joint_index, edit_dim] = True
+        # kframes.append((keyframe, (0, 0)))
+
+
+    is_noise_init = False
+    return target, target_mask, kframes, is_noise_init, task_info["initial_motion"], obs_list
+
+def task_pose_editing_reprojection(task_info, args, target, target_mask):
+    ''' This is a more general version of the trajectory editing task where each joint can be modified.
+    The core idea is the same.
+    '''
+    # List for editing
+    # (joint_index, keyframe, edit_dim target(x, y, z))
+    # edit_dim: list of dimensions to edit [0, 1, 2] for x, y, z respectively
+    # We can edit only some dimensions of the target pose e.g. only y (height of the joint)
+    # joint_idx = 21 # Right hand
+    
+    keyframe = 90
+    edit_dim = [0, 1, 2]
+    target_loc = [0.0, 0.0, 0.0]
+    target_edit_list = [(joint_index, keyframe, edit_dim, target_loc) for joint_index in range(22)]
+    
     kframes = []
     obs_list = []
     for (joint_index, keyframe, edit_dim, target_loc) in target_edit_list:

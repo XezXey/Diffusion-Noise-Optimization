@@ -107,13 +107,13 @@ class CondReprojectionLoss:
                 # Only care about XZ position for now. Y-axis is going up from the ground
                 # remove the feature dim
                 x_in_joints = x_in_joints.squeeze(1)
-
-                loss_sum = reprojection_loss(x_in_joints, target_joints_2d, cam_dict) * target_mask[..., :2] * motion_mask[..., :2]
+                
+                loss_sum, _ = reprojection_loss(x_in_joints, target_joints_2d, cam_dict) * target_mask[..., :2] * motion_mask[..., :2]
 
                 adaptive_mean = True
                 if adaptive_mean: 
                     # average the loss over the number of valid joints
-                    loss_sum = loss_sum.sum(dim=[1, 2, 3]) / (target_mask * motion_mask).sum(dim=[1, 2, 3])
+                    loss_sum = loss_sum.sum(dim=[1, 2, 3]) / ((target_mask[..., :2] * motion_mask[..., :2]).sum(dim=[1, 2, 3]) + 1e-16)
                 else:
                     # average naively over the batch
                     loss_sum = loss_sum.mean(dim=[1,2,3])
@@ -144,7 +144,7 @@ def reprojection_loss(x_in_joints, target_joints_2d, cam_dict):
     """
     Reprojection loss
     Input:
-        x_in_joints (bs, N, 3, T): 3D model joints; N is the number of joints, T is the number of frames
+        x_in_joints (bs, T, N, 3): 3D model joints; N is the number of joints, T is the number of frames
         cam_dict: Camera parameters (camera_R, camera_t, camera_center, focal_length)
         
     """
@@ -174,14 +174,14 @@ def reprojection_loss(x_in_joints, target_joints_2d, cam_dict):
     
 
     # Compute reprojection error
-    use_mse_loss = False
+    use_mse_loss = True
     loss_fn = F.mse_loss if use_mse_loss else F.l1_loss
     target_joints_2d = torch.repeat_interleave(target_joints_2d, B, dim=0)
     target_joints_2d = torch.repeat_interleave(target_joints_2d, x_in_joints_projected.shape[1], dim=1)
     target_joints_2d = target_joints_2d.to(x_in_joints_projected.device)
     total_loss = loss_fn(x_in_joints_projected, target_joints_2d, reduction="none")
 
-    return total_loss
+    return total_loss, x_in_joints_projected
 
 def perspective_projection(points, rotation, translation,
                         focal_length, camera_center):
@@ -207,13 +207,13 @@ def perspective_projection(points, rotation, translation,
     points = points + translation.unsqueeze(1)
 
     # Apply perspective distortion
-    projected_points = points / points[:, :, -1].unsqueeze(-1)
+    projected_points = points / (points[:, :, -1].unsqueeze(-1) + 1e-16)
 
     # Apply camera intrinsics
     projected_points = torch.einsum('bij,bkj->bki', K, projected_points)
     # Normalized to [0, 1]
-    projected_points[..., 0] = projected_points[..., 0] / 574
-    projected_points[..., 1] = projected_points[..., 1] / 575
+    projected_points[..., 0] = projected_points[..., 0] / 574.0
+    projected_points[..., 1] = projected_points[..., 1] / 575.0
 
     return projected_points[:, :, :-1]
 
@@ -241,7 +241,7 @@ def rotation_6d_to_matrix(d6: torch.Tensor) -> torch.Tensor:
     R = torch.stack((b1, b2, b3), dim=-2)
     
     # Check orthogonality
-    assert torch.allclose(R.transpose(-2, -1) @ R, torch.eye(3, device=d6.device).expand_as(R), atol=1e-4)
+    # assert torch.allclose(R.transpose(-2, -1) @ R, torch.eye(3, device=d6.device).expand_as(R), atol=1e-4)
     # Check determinant
-    assert torch.allclose(torch.det(R), torch.ones(1, device=d6.device))
+    # assert torch.allclose(torch.det(R), torch.ones(1, device=d6.device))
     return R

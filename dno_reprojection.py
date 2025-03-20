@@ -161,18 +161,18 @@ class DNOReprojection:
                 self.current_z.grad.data /= self.current_z.grad.norm(
                     p=2, dim=self.dims, keepdim=True
                 )
-                self.cam_dict['camera_T'].grad.data /= self.cam_dict['camera_T'].grad.norm(
-                    p=2, dim=(1, 2), keepdim=True
-                )
-                self.cam_dict['camera_R'].grad.data /= self.cam_dict['camera_R'].grad.norm(
-                    p=2, dim=(1, 2), keepdim=True
-                )
-                self.cam_dict['camera_center'].grad.data /= self.cam_dict['camera_center'].grad.norm(
-                    p=2, dim=1, keepdim=True
-                )
-                self.cam_dict['focal_length'].grad.data /= self.cam_dict['focal_length'].grad.norm(
-                    p=2, dim=1, keepdim=True
-                )
+                # self.cam_dict['camera_T'].grad.data /= self.cam_dict['camera_T'].grad.norm(
+                #     p=2, dim=(1, 2), keepdim=True
+                # )
+                # self.cam_dict['camera_R'].grad.data /= self.cam_dict['camera_R'].grad.norm(
+                #     p=2, dim=(1, 2), keepdim=True
+                # )
+                # self.cam_dict['camera_center'].grad.data /= self.cam_dict['camera_center'].grad.norm(
+                #     p=2, dim=1, keepdim=True
+                # )
+                # self.cam_dict['focal_length'].grad.data /= self.cam_dict['focal_length'].grad.norm(
+                #     p=2, dim=1, keepdim=True
+                # )
 
                 # optimize z
                 self.optimizer.step()

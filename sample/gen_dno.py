@@ -18,7 +18,6 @@ from dno import DNO, DNOOptions
 from model.cfg_sampler import ClassifierFreeSampleModel
 from sample import dno_helper
 from sample.condition import CondKeyLocationsLoss
-from sample.reprojection_condition import CondReporjectionLoss
 from utils import dist_util
 from utils.fixseed import fixseed
 from utils.model_util import (create_gaussian_diffusion,
@@ -39,8 +38,8 @@ def main(num_trials=3):
     #############################################
     ### Task selection ###
     task = ""
-    task = "trajectory_editing"
-    # task = "pose_editing"
+    # task = "trajectory_editing"
+    task = "pose_editing"
     # task = "dense_optimization"
     # task = "motion_projection"
     # task = "motion_blending"

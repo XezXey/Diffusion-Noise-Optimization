@@ -29,7 +29,7 @@ from utils.parser_util import generate_args
 
 def main(num_trials=3):
     num_ode_steps = 10
-    OPTIMIZATION_STEP = 10000
+    OPTIMIZATION_STEP = 3000
     #############################################
     ### Gradient Checkpointing
     # More DDIM steps will require more memory for full chain backprop.
@@ -40,7 +40,8 @@ def main(num_trials=3):
     task = ""
     # task = "trajectory_editing"
     # task = "pose_editing"
-    task = "dense_optimization"
+    task = "pose_editing_reprojection"
+    # task = "dense_optimization"
     # task = "motion_projection"
     # task = "motion_blending"
     # task = "motion_inbetweening"
