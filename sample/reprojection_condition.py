@@ -44,8 +44,8 @@ class CondReprojectionLoss:
         target_joints_2d = np.array([[305.5, 278.5], [329.0, 278.0], [282.0, 279.0], [308.25, 213.5], [370.0, 364.0], [245.0, 366.0], [309.34999999999997, 187.5], [410.0, 448.0], [209.0, 451.0], [309.90000000000003, 174.5], [417.0, 481.0], [199.0, 484.0], [311.0, 148.5], [329.95000000000005, 161.75], [290.95000000000005, 161.25], [311.0, 118.5], [350.0, 149.0], [272.0, 148.0], [406.0, 136.0], [211.0, 130.0], [431.0, 84.0], [195.0, 77.0]])
         # Normalized to 0-1
         self.h, self.w, _ = (574, 575, 3)
-        target_joints_2d[..., 0] = target_joints_2d[..., 0] / self.h
-        target_joints_2d[..., 1] = target_joints_2d[..., 1] / self.w
+        target_joints_2d[..., 0] = target_joints_2d[..., 0] / self.w
+        target_joints_2d[..., 1] = target_joints_2d[..., 1] / self.h
         target_joints_2d = target_joints_2d[None, None, :, :]
         target_joints_2d = torch.tensor(target_joints_2d, dtype=torch.float32)
         self.target_joints_2d = target_joints_2d
@@ -106,9 +106,10 @@ class CondReprojectionLoss:
                 # Assume the target has dimention [bs, 120, 22, 3] in case we do key poses instead of key location
                 # Only care about XZ position for now. Y-axis is going up from the ground
                 # remove the feature dim
-                x_in_joints = x_in_joints.squeeze(1)
+                x_in_joints = x_in_joints.squeeze(1)    # B x T x N x 3
                 
-                loss_sum, _ = reprojection_loss(x_in_joints, target_joints_2d, cam_dict) * target_mask[..., :2] * motion_mask[..., :2]
+                loss_sum, _ = reprojection_loss(x_in_joints, target_joints_2d, cam_dict)
+                loss_sum = loss_sum * target_mask[..., :2] * motion_mask[..., :2]
 
                 adaptive_mean = True
                 if adaptive_mean: 
@@ -157,20 +158,25 @@ def reprojection_loss(x_in_joints, target_joints_2d, cam_dict):
     focal_length = cam_dict['focal_length'].to(x_in_joints.device)  # BS x 1  # Focal length of the camera fixed for all frames
     # print(camera_R.mean(), camera_T.mean(), camera_center.mean(), focal_length.mean())
     
+    # Centralized the motion
+    # x_in_joints[..., [0, 2]] = x_in_joints[..., [0, 2]] - x_in_joints[:, :, 0:1, [0, 2]] 
     
     # Project model joints
     x_in_joints_projected = []
+    all_depth = []
     B = x_in_joints.shape[0]
     for i in range(B):
-        projected_points = perspective_projection(
-            x_in_joints[i], 
+        projected_points, depth = perspective_projection(
+            x_in_joints[i],
             camera_R[i],   
             camera_T[i].permute(1, 0),   # T x 3
             focal_length[i],   # B
             camera_center[i].unsqueeze(0),   # 1 x 2
         )
         x_in_joints_projected.append(projected_points)
+        all_depth.append(depth) 
     x_in_joints_projected = torch.stack(x_in_joints_projected, dim=0)  # B x T x N x 2
+    all_depth = torch.stack(all_depth, dim=0)  # B x T x N x 1
     
 
     # Compute reprojection error
@@ -179,8 +185,12 @@ def reprojection_loss(x_in_joints, target_joints_2d, cam_dict):
     target_joints_2d = torch.repeat_interleave(target_joints_2d, B, dim=0)
     target_joints_2d = torch.repeat_interleave(target_joints_2d, x_in_joints_projected.shape[1], dim=1)
     target_joints_2d = target_joints_2d.to(x_in_joints_projected.device)
-    total_loss = loss_fn(x_in_joints_projected, target_joints_2d, reduction="none")
-
+    total_loss = loss_fn(x_in_joints_projected[..., :2], target_joints_2d, reduction="none")
+ 
+    # Contraints that the foot should be on the ground at frame 90
+    # ground_constraint_loss = x_in_joints[:, 90, [7, 9, 10, 11], 1] ** 2
+    # ground_constraint_loss = ground_constraint_loss.sum(dim=1)
+    # total_loss += ground_constraint_loss.unsqueeze(1).unsqueeze(1).unsqueeze(1) 
     return total_loss, x_in_joints_projected
 
 def perspective_projection(points, rotation, translation,
@@ -207,6 +217,7 @@ def perspective_projection(points, rotation, translation,
     points = points + translation.unsqueeze(1)
 
     # Apply perspective distortion
+    depth = points[:, :, -1].unsqueeze(-1)
     projected_points = points / (points[:, :, -1].unsqueeze(-1) + 1e-16)
 
     # Apply camera intrinsics
@@ -215,7 +226,7 @@ def perspective_projection(points, rotation, translation,
     projected_points[..., 0] = projected_points[..., 0] / 574.0
     projected_points[..., 1] = projected_points[..., 1] / 575.0
 
-    return projected_points[:, :, :-1]
+    return projected_points[:, :, :-1], depth
 
 def rotation_6d_to_matrix(d6: torch.Tensor) -> torch.Tensor:
     """

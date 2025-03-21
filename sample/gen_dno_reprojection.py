@@ -29,7 +29,7 @@ from utils.parser_util import generate_args
 
 def main(num_trials=3):
     num_ode_steps = 10
-    OPTIMIZATION_STEP = 3000
+    OPTIMIZATION_STEP = 800
     #############################################
     ### Gradient Checkpointing
     # More DDIM steps will require more memory for full chain backprop.
@@ -349,10 +349,6 @@ def main(num_trials=3):
 
         cur_xt = cur_xt.detach().requires_grad_()
 
-        #TODO: Complete the loss function
-        # 1. Class argument: target_joints_2d, target_mask, ...
-        # 2. Create and Initialize the camera parameters as the learnable parameters in addition to the self.current_z (https://vscode.dev/github/XezXey/Diffusion-Noise-Optimization/blob/main/dno.py#L71)
-        #DONE:
         loss_fn = CondReprojectionLoss(
             target=target,
             target_joints_2d=None,

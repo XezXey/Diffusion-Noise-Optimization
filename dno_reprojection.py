@@ -45,6 +45,55 @@ class DNOOptions:
             self.lr_decay_steps = self.num_opt_steps
 
 
+import torch.nn.functional as F
+def look_at(eye, target=torch.tensor([0.0, 0.0, 0.0]), up=torch.tensor([0.0, 1.0, 0.0])):
+    """
+    Compute a look-at rotation matrix given an eye position.
+    The returned matrix rotates points from world space into the camera coordinate system.
+    """
+    # Compute forward direction (from eye to target)
+    forward = F.normalize(target - eye, dim=0)
+    # Compute right direction (perpendicular to up and forward)
+    right = F.normalize(torch.cross(up, forward), dim=0)
+    # Recompute the orthogonal up vector
+    new_up = torch.cross(forward, right)
+    # Assemble the rotation matrix (columns: right, new_up, -forward)
+    R = torch.stack([right, new_up, -forward], dim=1)
+    return R
+
+def initialize_camera(B, T, distance=5.0, pitch_deg=30.0):
+    """
+    Initialize camera translation (camera_T) and rotation (camera_R).
+    
+    - Camera is placed at a fixed distance from the origin.
+    - The pitch (in degrees) determines the vertical offset.
+    - The camera always looks at the origin.
+    - Rotation is converted to a 6D representation by taking the first two columns.
+    """
+    # Convert pitch from degrees to radians
+    pitch = torch.deg2rad(torch.tensor(pitch_deg))
+    # Compute the camera position components
+    cam_z = distance * torch.cos(pitch)  # forward/backward
+    cam_y = distance * torch.sin(pitch)  # vertical offset
+    # Place the camera along the Y-Z plane; X remains zero
+    cam_pos = torch.tensor([0.0, cam_y.item(), cam_z.item()])
+    
+    # Initialize camera_T with shape (B, 3, T)
+    camera_T = cam_pos.view(3, 1).expand(3, T).unsqueeze(0).expand(B, 3, T).clone()
+    
+    # Compute the look-at rotation matrix (3x3) using the camera position as the eye position.
+    R = look_at(cam_pos)
+    # Expand to (B, T, 3, 3) so each camera instance and time step uses the same initial rotation
+    R = R.unsqueeze(0).unsqueeze(0).expand(B, T, 3, 3).clone()
+    # Convert to a 6D representation by taking the first two columns and reshaping to (B, 6, T)
+    camera_R = R[:, :, :, :2].reshape(B, T, 6).permute(0, 2, 1).contiguous()
+    
+    # Set gradients to be computed for these parameters
+    camera_T.requires_grad_()
+    camera_R.requires_grad_()
+    
+    return camera_T, camera_R
+
 class DNOReprojection:
     """
     Args:
@@ -70,11 +119,12 @@ class DNOReprojection:
         self.dims = list(range(1, len(self.start_z.shape)))
         
         # Learnable camera parameters
+        camera_T, camera_R = initialize_camera(B, T, distance=5.0, pitch_deg=30.0)
         self.cam_dict = {
-            'camera_T': torch.randn(B, 3, T).requires_grad_(True),
-            'camera_R': torch.randn(B, 6, T).requires_grad_(True),
+            'camera_T': camera_T.requires_grad_(True),
+            'camera_R': camera_R.requires_grad_(True),
             'camera_center': torch.zeros(B, 2).requires_grad_(True),
-            'focal_length': (torch.ones(B, 1) * 640.).requires_grad_(True),
+            'focal_length': (torch.ones(B, 1) * 640).requires_grad_(True),
         }
 
         self.optimizer = torch.optim.Adam([self.current_z], lr=conf.lr)

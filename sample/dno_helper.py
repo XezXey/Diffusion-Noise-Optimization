@@ -131,10 +131,12 @@ def task_pose_editing_reprojection(task_info, args, target, target_mask):
     # We can edit only some dimensions of the target pose e.g. only y (height of the joint)
     # joint_idx = 21 # Right hand
     
-    keyframe = 90
     edit_dim = [0, 1, 2]
     target_loc = [0.0, 0.0, 0.0]
-    target_edit_list = [(joint_index, keyframe, edit_dim, target_loc) for joint_index in range(22)]
+    target_edit_list = []
+    # for keyframe in [10, 30, 60]:
+    for keyframe in [90]:
+        target_edit_list += [(joint_index, keyframe, edit_dim, target_loc) for joint_index in range(22)]
     
     kframes = []
     obs_list = []
